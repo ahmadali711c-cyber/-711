@@ -1,4 +1,4 @@
-name: Build APK from ZIP
+name: Build APK Without Gradlew
 on: [push, pull_request]
 jobs:
   build:
@@ -6,32 +6,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Unzip Source Code
+      - name: Extract Project
         run: |
-          # فك ضغط كل ملفات الـ ZIP الموجودة في المستودع
-          find . -name "*.zip" -exec unzip -o {} -d . \;
-
+          # فك ضغط الملف في مجلد فرعي لضمان التنظيم
+          find . -name "*.zip" -exec unzip -o {} -d ./source_code \;
+          
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Find and Build
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+        with:
+          gradle-version: current
+
+      - name: Build with System Gradle
         run: |
-          # البحث عن ملف gradlew في أي مكان داخل الملفات المفكوكة
-          GRADLEW_PATH=$(find . -name gradlew | head -n 1)
-          if [ -z "$GRADLEW_PATH" ]; then
-            echo "Error: gradlew not found even after unzip!"
-            exit 1
-          fi
-          # الانتقال للمجلد الذي يحتوي على الكود وبدء البناء
-          cd $(dirname "$GRADLEW_PATH")
-          chmod +x gradlew
-          ./gradlew assembleDebug
+          # البحث عن مكان ملف build.gradle والدخول إليه
+          PROJECT_DIR=$(find ./source_code -name "build.gradle" -exec dirname {} \; | head -n 1)
+          cd "$PROJECT_DIR"
+          # استخدام gradle الخاص بالنظام لبناء الـ APK
+          gradle assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: App-Package
+          name: My-Final-App
+          path: "**/*.apk"
           path: "**/*.apk"
