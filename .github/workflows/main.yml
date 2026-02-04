@@ -1,4 +1,4 @@
-name: Build APK
+name: Build APK Diagnostic
 on: [push, pull_request]
 jobs:
   build:
@@ -22,31 +22,26 @@ jobs:
         with:
           gradle-version: 8.5
 
-      - name: Force Fix Manifest and Resources
+      - name: Advanced Fix & Debug
         run: |
           PROJECT_DIR=$(find ./src_code -name "build.gradle" -exec dirname {} \; | head -n 1)
           cd "$PROJECT_DIR"
           
-          # 1. حذف الملفات المسببة للمشاكل
+          # تنظيف الملفات المسببة للمشاكل
           find . -name "edit_poi_page.xml" -exec sed -i '/app:gravity/d' {} +
           find . -name "*.9.png" -delete
           
-          # 2. إنشاء ملف خصائص يفرض التوافق (AndroidX)
-          echo "android.useAndroidX=true" > gradle.properties
+          # محاولة إجبار الـ Gradle على تجاوز أخطاء المانيفست والمصادر
+          echo "android.bundle.enableUncompressedNativeLibs=false" >> gradle.properties
+          echo "android.useAndroidX=true" >> gradle.properties
           echo "android.enableJetifier=true" >> gradle.properties
-          
-          # 3. تعديل المانيفست لإضافة أذونات التصدير للأندرويد الحديث
-          # هذا يحل مشكلة Manifest merger failed في أغلب المشاريع القديمة
-          find . -name "AndroidManifest.xml" -exec sed -i 's/<activity/<activity android:exported="true" /g' {} +
-          find . -name "AndroidManifest.xml" -exec sed -i 's/<service/<service android:exported="true" /g' {} +
-          find . -name "AndroidManifest.xml" -exec sed -i 's/<receiver/<receiver android:exported="true" /g' {} +
 
-      - name: Run Build
+      - name: Run Build with Stacktrace
         run: |
           PROJECT_DIR=$(find ./src_code -name "build.gradle" -exec dirname {} \; | head -n 1)
           cd "$PROJECT_DIR"
-          # استخدام خيار تجاهل أخطاء الدمج
-          gradle assembleDebug --no-daemon
+          # تشغيل البناء مع إظهار الخطأ كاملاً
+          ./gradlew assembleDebug --stacktrace --info || gradle assembleDebug --stacktrace --info
 
       - name: Upload Result
         uses: actions/upload-artifact@v4
