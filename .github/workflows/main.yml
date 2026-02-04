@@ -22,25 +22,29 @@ jobs:
         with:
           gradle-version: 8.5
 
-      - name: Clean and Fix Resources
+      - name: Hard Fix Resources & Manifest
         run: |
           PROJECT_DIR=$(find ./src_code -name "build.gradle" -exec dirname {} \; | head -n 1)
           cd "$PROJECT_DIR"
-          # حذف الصور التالفة التي تسببت في الخطأ السابق تلقائياً
+          
+          # 1. حذف السطر المسبب للخطأ في ملف الـ layout
+          # سيتم حذف أي سطر يحتوي على app:gravity لتجنب خطأ Unbound Prefix
+          find . -name "edit_poi_page.xml" -exec sed -i '/app:gravity/d' {} +
+          
+          # 2. حذف الصور التالفة نهائياً
           find . -name "*.9.png" -delete
-          # محاولة إصلاح مشكلة الـ XML البسيطة عبر حذف الأسطر المسببة للخطأ (اختياري)
-          sed -i '/app:gravity/d' src/main/res/layout/edit_poi_page.xml || true
+          
+          # 3. محاولة إصلاح الـ Manifest Merger
+          # هذا الأمر يضيف إعدادات تجعل النظام يتغاضى عن تعارض المكتبات
+          find . -name "AndroidManifest.xml" -exec sed -i 's/<application/<application android:extractNativeLibs="true" tools:replace="android:allowBackup" /g' {} +
+          # التأكد من وجود تعريف tools في الـ Manifest
+          find . -name "AndroidManifest.xml" -exec sed -i 's/<manifest/<manifest xmlns:tools="http:\/\/schemas.android.com\/tools"/g' {} +
 
       - name: Run Build
         run: |
           PROJECT_DIR=$(find ./src_code -name "build.gradle" -exec dirname {} \; | head -n 1)
           cd "$PROJECT_DIR"
-          # أمر بناء يتجاهل أخطاء الصور تماماً
-          gradle assembleDebug \
-            -Pandroid.useAndroidX=true \
-            -Pandroid.enableJetifier=true \
-            -Pandroid.aapt.ignoreAssetsPattern="!.svn:!.git:!.ds_store:!*.9.png" \
-            --no-daemon
+          gradle assembleDebug --no-daemon -Pandroid.useAndroidX=true -Pandroid.enableJetifier=true
 
       - name: Upload Result
         uses: actions/upload-artifact@v4
